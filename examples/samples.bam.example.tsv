@@ -1,0 +1,7 @@
+sample_id	condition	bam	batch
+WT1	WT	bams/WT1.bam	A
+WT2	WT	bams/WT2.bam	B
+WT3	WT	bams/WT3.bam	A
+KO1	KO	bams/KO1.bam	A
+KO2	KO	bams/KO2.bam	B
+KO3	KO	bams/KO3.bam	A

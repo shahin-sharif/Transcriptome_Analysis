@@ -1,0 +1,9 @@
+sample_id	condition	batch
+S1	WT	A
+S2	WT	B
+S3	WT	A
+S4	WT	B
+S5	KO	A
+S6	KO	B
+S7	KO	A
+S8	KO	B

@@ -1,0 +1,12 @@
+.Rhistory
+.RData
+.Rproj.user/
+*.bam
+*.bai
+*.sam
+*.RData
+*.rds
+example_results/
+DEJU_*/
+.Renviron
+.DS_Store
