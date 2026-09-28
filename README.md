@@ -1,290 +1,534 @@
 # Transcriptome_Analysis
 
-## Integrated workflow (0.2.0)
+**An RNA-seq toolkit for studying gene expression, exon and junction usage,
+alternative splicing, and transcript isoforms.**
 
-`TranscriptomePipeline.py` is the new configurable entry point. It supports
-DESeq2 gene-expression analysis, general-design DEJU, rMATS event/PSI analysis,
-StringTie/GffCompare transcript reconstruction and quantification, Arriba fusion
-candidates, locus plots and an HTML run report. Native R functions and external
-caller adapters have different validation levels; see the validation document.
+Transcriptome_Analysis brings complementary analyses into one configurable
+workflow. It can start from aligned reads, existing count tables, or Salmon
+transcript quantifications, depending on the analysis selected. Results include
+statistical tables, quality-control plots, and a report linking the outputs.
 
-* [Configuration, modules and input requirements](docs/INTEGRATED_WORKFLOW.md)
-* [Validation and remaining limits](docs/VALIDATION_V0.2.md)
-* [Salmon/DEXSeq isoform-switch analysis](docs/ISOFORM_SWITCH.md)
-* [Original isoform pipeline review](docs/ISOFORM_SWITCH_REVIEW.md)
-* [Reference downloads, checksums and reuse guidance](references/README.md)
+The workflow is modular: run only the analyses needed for an experiment.
+Gene-expression changes, junction-usage changes, event PSI and isoform fractions
+answer different questions and are reported separately.
 
-`IsoformSwitchAnalysis.R` is a dedicated Salmon/DEXSeq isoform-switch workflow,
-callable independently or through `isoform_switch` in the main pipeline. It
-retains all tested results and adds optional consequence prediction, plots and GO.
-It is distinct from StringTie transcript reconstruction/quantification.
+## Contents
 
-**Validation:** native DESeq2/DEJU count and BAM tests passed. External callers
-and the complete IsoformSwitchAnalyzeR analysis still require execution testing
-in an environment with those dependencies. No real experimental dataset has
-been validated for this expanded release. See the validation document.
+1. [Choose an analysis](#1-choose-an-analysis)
+2. [Download and install](#2-download-and-install)
+3. [Run a complete example](#3-run-a-complete-example)
+4. [Analyze your own BAM files](#4-analyze-your-own-bam-files)
+5. [Analyze an existing gene-count table](#5-analyze-an-existing-gene-count-table)
+6. [Run standalone DEJU](#6-run-standalone-deju)
+7. [Analyze isoform switching with Salmon](#7-analyze-isoform-switching-with-salmon)
+8. [Add other analyses](#8-add-other-analyses)
+9. [Find and interpret results](#9-find-and-interpret-results)
+10. [Troubleshooting and further documentation](#10-troubleshooting-and-further-documentation)
+
+## 1. Choose an analysis
+
+| Question | Analysis | Input | Main result |
+|---|---|---|---|
+| Which genes change expression? | `dge`: DESeq2 | Gene counts, or BAM files + GTF | Gene log2 fold changes and adjusted p-values |
+| Which exon/junction features change relative to their gene? | `dju`: DEJU | Feature counts + feature annotation, or BAM files + GTF | Relative usage effects and FDR |
+| Which splicing events change? | `events`: rMATS | BAM files + GTF + read-length information | Exon skipping, alternative donor/acceptor, mutually exclusive exons, intron retention; PSI and ΔPSI |
+| Which transcript structures are supported? | `isoforms`: StringTie/GffCompare | BAM files + GTF | Reconstructed transcripts, abundance and novel-locus candidates |
+| Which transcript isoforms change their share of gene expression? | `isoform_switch`: IsoformSwitchAnalyzeR/DEXSeq | Salmon quantifications + matching GTF | Isoform fractions, dIF and switch statistics |
+| What do reads look like at a locus? | `loci` | BAM files + GTF + region coordinates | Coverage and junction-arc plots |
+| Are fusion transcripts supported? | `fusions`: Arriba | Suitable STAR chimeric alignments + matched reference resources | Fusion candidates |
+
+**Start here:** for gene expression and junction usage together, follow section 4.
+For an existing gene-count table, follow section 5. For Salmon isoform switching,
+follow section 7. Gene-count tables alone cannot recover event PSI or isoform usage.
+
+## 2. Download and install
+
+### Open a terminal and download the repository
+
+The commands below are for Bash or Zsh on Linux/macOS. Run them in a terminal,
+not inside the R console. Copy only the text inside each code block; do not add
+a `$` prompt. Run commands from the repository directory unless stated otherwise.
+
+```bash
+mkdir -p "$HOME/projects"
+cd "$HOME/projects"
+git clone https://github.com/shahin-sharif/Transcriptome_Analysis.git
+cd Transcriptome_Analysis
+```
+
+If the repository is private, your GitHub account needs access and Git must be
+authenticated. If you already downloaded it, enter its existing directory rather
+than cloning it again. Check your location and files:
+
+```bash
+pwd
+ls
+```
+
+You should see `TranscriptomePipeline.py`, `DEJUPipeline.R`,
+`IsoformSwitchAnalysis.R`, and the `examples` directory. Keep the repository's
+files together: the entry scripts load helper files from the same repository.
+
+### Check Python and R
+
+```bash
+python3 --version
+Rscript --version
+```
+
+The integrated workflow needs Python 3.9 or newer. Python uses only its standard
+library. R analyses require R and compatible Bioconductor packages. If either
+command is missing, install that language before continuing; on a managed server,
+use the software environment supplied by the administrator.
+
+Install the core R dependencies:
 
 ```bash
 Rscript install_dependencies.R
+```
+
+This installs packages, not R itself, and requires internet access. Use a current,
+coherent R/Bioconductor environment. Modern DEJU requires edgeR ≥ 4.6 and compatible
+limma. The installer does not automatically upgrade every existing package.
+
+For isoform switching, also run:
+
+```bash
+Rscript install_dependencies.R --isoform-switch
+```
+
+For optional human GO enrichment, add `--go`. Other organisms need their matching
+annotation package. The installer does **not** install rMATS, StringTie,
+GffCompare, Arriba or Salmon; those are needed only for the corresponding analyses.
+See [module requirements](docs/INTEGRATED_WORKFLOW.md#external-executable-configuration).
+
+## 3. Run a complete example
+
+This example uses the small synthetic gene-count table supplied with the
+repository. No BAM files, reference genome or downloads of experimental data
+are needed after installing the R dependencies.
+
+First check the configuration, input files and dependencies:
+
+```bash
 python3 TranscriptomePipeline.py --config examples/integrated/config.json --check
+```
+
+Then run the analysis:
+
+```bash
 python3 TranscriptomePipeline.py --config examples/integrated/config.json
 ```
 
-The original standalone DEJU command remains available below. New junction
-counting defaults require 8 contiguous aligned bases on each side of a splice
-gap and intron lengths of 20..1,000,000 bases. The integrated config exposes
-these thresholds; set them appropriately for the organism and alignment policy.
+The example fits DESeq2 with condition, batch, time and a condition-by-time
+interaction. It generates three comparisons. Its synthetic signals demonstrate
+software behavior; they are not biological discoveries.
 
-## DEJU: differential exon and junction usage
-
-`DEJUPipeline.R` and `DEJUHelpers.R` consolidate the useful parts of the previous
-DEJU pipelines into one command-line workflow. The model combines counts from
-non-spliced exon reads and splice-junction reads, then tests whether a feature's
-change differs from the other retained features of its gene.
-
-This measures **relative usage**, not PSI, absolute expression, or differential
-transcript abundance. A significant gene-level test can be driven by an exon;
-it does not necessarily identify a significant junction.
-
-DEJU version: **0.2.0**. Both files must remain together. Sourcing either file does not
-launch an analysis. See [CHANGES.md](CHANGES.md) for the consolidation decisions
-and [tests/README.md](tests/README.md) for what has been tested.
-
-## Install
-
-Use a recent R installation with a matching Bioconductor release. The modern
-engine requires edgeR >= 4.6 and a compatible limma. The optional legacy engine
-uses `diffSpliceDGE` with legacy QL fitting; the pipeline requires edgeR >= 4.0.
-Do not mix Bioconductor releases in an existing analysis environment.
+Find the results:
 
 ```bash
-Rscript install_dependencies.R
+ls results/example_dge
+ls results/example_dge/dge
+cat results/example_dge/COMPLETE.txt
 ```
 
-To include optional GO enrichment packages:
+Open `results/example_dge/report.html` in a web browser. On macOS:
 
 ```bash
-Rscript install_dependencies.R --go
+open results/example_dge/report.html
 ```
 
-The installer uses the library configured for your R session. Use `R_LIBS_USER`
-to select a separate library if desired. Installation needs internet access;
-analysis itself does not download annotations or packages.
+On a remote server, download the **whole output folder** to your computer before
+opening the report so its links to result tables and PDFs continue to work.
 
-## Try the small example
+**To repeat a run:** change `out` in the configuration to a new folder, for example
+`../../results/example_dge_run2`. Existing output folders are not overwritten.
+Paths in a JSON configuration are relative to that configuration's directory.
 
-From the repository directory:
+## 4. Analyze your own BAM files
+
+This walkthrough runs **DESeq2 gene expression and DEJU junction usage together**
+for three WT and three KO biological replicates. Replace these names and paths
+with your experiment's actual samples. The example assumes paired-end,
+reverse-stranded libraries; change those settings if your preparation differs.
+
+### Step A — prepare the input files
+
+You need:
+
+* One aligned BAM file per biological sample.
+* A GTF matching the genome assembly and chromosome names used for alignment.
+* Known paired/single-end and library-strand settings.
+
+Native BAM counting requires the aligner's `NH:i:1` tag for retained reads.
+Reads without NH are excluded. Technical lanes are not independent biological
+replicates. DESeq2 counts genes separately from DEJU features; it does not sum
+junction counts to estimate gene expression.
+
+### Step B — create the sample sheet
+
+Create a folder for configuration files and open a new file with nano:
+
+```bash
+mkdir -p analysis
+nano analysis/samples.tsv
+```
+
+Paste the following **tab-separated** table. Replace every `/absolute/path/...`
+with a real path on your computer or server. Use actual tabs between columns,
+not spaces. Do not include the code-block markers.
+
+```tsv
+sample_id	condition	bam
+WT1	WT	/absolute/path/bams/WT1.bam
+WT2	WT	/absolute/path/bams/WT2.bam
+WT3	WT	/absolute/path/bams/WT3.bam
+KO1	KO	/absolute/path/bams/KO1.bam
+KO2	KO	/absolute/path/bams/KO2.bam
+KO3	KO	/absolute/path/bams/KO3.bam
+```
+
+In nano, press **Ctrl+O**, then **Enter** to save, and **Ctrl+X** to exit.
+`sample_id` identifies a sample; `condition` identifies its experimental group;
+`bam` points to its alignment file. Relative BAM paths are resolved against the
+sample-sheet directory. Absolute paths are easier to follow when starting out.
+
+### Step C — create the analysis configuration
+
+A JSON configuration is a text file containing the input paths, selected modules
+and analysis settings. Create it:
+
+```bash
+nano analysis/bam_analysis.json
+```
+
+Paste this complete configuration, replacing the GTF path:
+
+```json
+{
+  "samples": "samples.tsv",
+  "gtf": "/absolute/path/reference/annotation.gtf",
+  "out": "../results/WT_KO",
+  "modules": ["dge", "dju"],
+  "bam": {
+    "paired": true,
+    "strand": 2,
+    "min_mapq": 10,
+    "remove_duplicates": false
+  },
+  "threads": 4,
+  "design": {
+    "formula": "~ condition",
+    "factors": {"condition": ["WT", "KO"]},
+    "numeric": []
+  },
+  "contrasts": [
+    {"name": "KO_vs_WT", "weights": {"conditionKO": 1}}
+  ],
+  "fdr": 0.05
+}
+```
+
+Save and exit nano as above. JSON requires double quotes around text and no
+trailing comma after the final item. Important settings:
+
+| Setting | Meaning |
+|---|---|
+| `samples` | The sample sheet; here it is beside the JSON file |
+| `gtf` | The matching annotation file; use an uncompressed GTF for BAM modules |
+| `out` | A new results directory; this example creates `results/WT_KO` |
+| `modules` | Analyses to run; choose `["dge"]` or `["dju"]` to run only one |
+| `paired` | `true` for paired-end sequencing, `false` for single-end |
+| `strand` | `0`: unstranded; `1`: forward; `2`: reverse. For paired reads, orientation is relative to read 1 |
+| `threads` | CPU threads available for applicable counting/external steps |
+| `formula` | Statistical model; `~ condition` compares groups without extra covariates |
+| `conditionKO` | KO compared with the first factor level, WT |
+| `fdr` | False-discovery-rate threshold |
+
+Positive effects in this comparison mean **KO relative to WT**. DESeq2's gene
+log2 fold change and DEJU's relative feature-usage effect are different measures.
+For batch adjustment, matched subjects, more conditions or interactions, follow
+[the model guide](docs/INTEGRATED_WORKFLOW.md#model-specification); adding a metadata
+column alone does not add it to the statistical model.
+
+### Step D — check, run and inspect
+
+```bash
+python3 TranscriptomePipeline.py --config analysis/bam_analysis.json --check
+python3 TranscriptomePipeline.py --config analysis/bam_analysis.json
+```
+
+The first command checks the setup; it does not run the analysis. Run the second
+only after correcting any reported errors. Check the completed output:
+
+```bash
+cat results/WT_KO/COMPLETE.txt
+ls results/WT_KO/dge
+ls results/WT_KO/dju/KO_vs_WT
+```
+
+The overview is `results/WT_KO/report.html`. A failed run retains an
+`INCOMPLETE.txt` marker and logs; the presence of some result files does not mean
+all requested analyses finished.
+
+## 5. Analyze an existing gene-count table
+
+Use this route when raw gene counts are already available. No BAM or GTF is
+needed for this DGE-only analysis. Counts must be nonnegative integers—not TPM,
+FPKM, normalized counts or transformed values.
+
+The table's first column contains unique gene IDs; subsequent columns identify
+samples. This two-row illustration shows the format, not a sufficient dataset
+for differential-expression analysis:
+
+```tsv
+gene_id	WT1	WT2	WT3	KO1	KO2	KO3
+GENE_A	120	135	118	260	245	271
+GENE_B	80	91	85	78	87	82
+```
+
+Save your **complete** count table as `analysis/gene_counts.tsv`. Create
+`analysis/count_samples.tsv` with the same sample IDs and their conditions:
+
+```tsv
+sample_id	condition
+WT1	WT
+WT2	WT
+WT3	WT
+KO1	KO
+KO2	KO
+KO3	KO
+```
+
+Use `nano analysis/count_analysis.json` to create this configuration:
+
+```json
+{
+  "samples": "count_samples.tsv",
+  "gene_counts": "gene_counts.tsv",
+  "out": "../results/gene_expression",
+  "modules": ["dge"],
+  "design": {
+    "formula": "~ condition",
+    "factors": {"condition": ["WT", "KO"]},
+    "numeric": []
+  },
+  "contrasts": [{"name": "KO_vs_WT", "weights": {"conditionKO": 1}}],
+  "fdr": 0.05
+}
+```
+
+Run:
+
+```bash
+python3 TranscriptomePipeline.py --config analysis/count_analysis.json --check
+python3 TranscriptomePipeline.py --config analysis/count_analysis.json
+```
+
+Standard featureCounts annotation columns are supported. If its count-column
+names are BAM paths rather than sample IDs, add a `count_column` column to the
+sample sheet containing each exact count-column name. See
+[count-table requirements](docs/INTEGRATED_WORKFLOW.md#start-with-the-count-only-example).
+
+## 6. Run standalone DEJU
+
+`DEJUPipeline.R` is a separate command-line entry point for a two-condition exon/
+junction-usage analysis. It does not run DESeq2. Keep `DEJUHelpers.R` beside it.
+
+Try the included feature-count example:
 
 ```bash
 Rscript DEJUPipeline.R \
   --samples examples/counts/samples.tsv \
   --counts examples/counts/counts.tsv \
   --features examples/counts/features.tsv \
-  --reference WT --treatment KO \
+  --reference WT \
+  --treatment KO \
   --covariates batch \
-  --out example_results
+  --out results/example_deju
 ```
 
-These are synthetic counts for 120 genes, four features per gene and eight
-samples. G001 has an increased junction-usage signal, G002 a decreased signal,
-and G003 an overall expression increase without a designed usage change. They
-are software fixtures, not biological observations. Always use a new output
-folder: the pipeline refuses to overwrite an existing path.
+A backslash `\` continues the same shell command on the next line. It must be the
+last character on the line, with no spaces after it. Alternatively, put the
+entire command on one line without backslashes.
 
-## Run on BAM files
-
-Create a tab-separated sample sheet, with one row per **biological replicate**:
-
-```text
-sample_id	condition	bam	batch
-WT1	WT	bams/WT1.bam	A
-WT2	WT	bams/WT2.bam	B
-WT3	WT	bams/WT3.bam	A
-KO1	KO	bams/KO1.bam	A
-KO2	KO	bams/KO2.bam	B
-KO3	KO	bams/KO3.bam	A
-```
-
-Replace the example text with real tab-separated columns. Relative BAM paths
-are resolved against the sample-sheet directory. The GTF must match the genome
-assembly and chromosome names used for alignment and must contain quoted
-`gene_id` and `transcript_id` attributes on exon records. Versioned IDs are
-preserved. No human-specific or chromosome-prefix assumptions are made.
+To use the real BAM sample sheet from section 4:
 
 ```bash
 Rscript DEJUPipeline.R \
-  --samples samples.tsv \
-  --gtf gencode.v48.annotation.gtf \
+  --samples analysis/samples.tsv \
+  --gtf /absolute/path/reference/annotation.gtf \
   --paired true \
   --strand 2 \
-  --reference WT --treatment KO \
-  --covariates batch \
-  --threads 8 \
-  --out DEJU_WT_vs_KO
+  --reference WT \
+  --treatment KO \
+  --threads 4 \
+  --out results/standalone_deju
 ```
 
-Choose `--paired true` or `false` from the sequencing design. Choose `--strand 0`
-for unstranded, `1` for forward/sense, or `2` for reverse/antisense libraries.
-For paired libraries, strand refers to the transcript orientation relative to
-read 1; read 2 has the opposite alignment orientation. These values are required,
-not guessed. Mixed single/paired libraries are rejected. Omit `--covariates`
-when there is no batch/subject adjustment. Covariates are **categorical**,
-comma-separated sample-sheet columns. A paired biological design can use
-`--covariates subject`; sequencing read pairs and paired subjects are different
-concepts. The model is additive, without interactions.
-
-Exactly two conditions and at least two biological replicates per condition are
-required. More replication is preferable. Rank-deficient designs and designs
-without residual degrees of freedom are rejected. Technical lanes must be
-combined appropriately, not listed as independent biological replicates.
-Positive usage effects mean **treatment minus reference**.
-
-### Counting policy
-
-* All retained alignments must be mapped, primary, non-supplementary, QC-passing,
-  have mapping quality >= `--min-mapq` (default 10), and carry **`NH:i:1`**.
-  Alignments without NH are excluded, not assumed unique. Confirm that the aligner
-  writes this tag. A MAPQ value of 255 is accepted; its meaning is aligner-specific.
-* Duplicate-marked alignments are retained by default. `--remove-duplicates true`
-  excludes marked duplicates; it does not discover duplicates or perform UMI
-  deduplication. Choose this based on the experiment and upstream processing.
-* The counting unit is an **aligned read**, including for paired-end data.
-  Overlapping mates can both contribute. No fragment-length limit or
-  requirement for both mates to be mapped is imposed. This policy is explicit
-  and differs from a fragment-counting analysis.
-* Exons are merged within each gene. Rsubread counts non-spliced reads against
-  these flattened exon features. Reads ambiguously overlapping multiple features
-  are excluded from exon counts. Spliced reads do not enter the exon channel.
-* Junctions are counted in chunks from CIGAR `N` operations, after the same BAM
-  filters. Each read contributes once to each intron it spans; a read crossing
-  several introns contributes to several junction features. Strand is inferred
-  from flags, mate identity and the declared library orientation.
-* Junction coordinates are the **1-based exonic bases flanking the intron**:
-  `left < right` on both strands. Donor/acceptor direction is separate.
-* Annotated junctions are assigned when the GTF provides one compatible gene.
-  Novel junctions must lie entirely within exactly one compatible gene span.
-  Ambiguous and unassigned junctions are excluded and reported. Strand is used
-  for stranded libraries. Unstranded data cannot resolve opposite-strand genes
-  sharing a junction. Fusion/trans-splicing analysis is outside this workflow.
-
-Direct CIGAR counting avoids two observed behaviors in Rsubread 2.10.5:
-`nonSplitOnly=TRUE` suppresses junction collection, and junction totals can be
-independent of `strandSpecific`. The automated BAM fixtures check the chosen
-counting behavior instead of relying on those defaults.
-
-Temporary filtered BAMs are stored under the output directory and removed when
-the counting function exits. Plan for sufficient disk space. Interrupted process
-termination may leave temporary files; an incomplete run is never marked complete.
-
-### Statistics and thresholds
-
-1. Align sample columns by sample IDs and validate raw integer counts.
-2. Apply design-aware `filterByExpr` (default minimum count 10, total count 15).
-3. Retain genes with at least two expressed features and at least one expressed
-   junction. A retained gene need not retain an exon after expression filtering.
-4. Recalculate library sizes, apply TMM normalization, and estimate robust
-   negative-binomial dispersions and quasi-likelihood models.
-5. Run the explicitly selected usage engine: `modern` (default, `diffSplice`) or
-   `legacy` (`diffSpliceDGE`). No silent engine fallback occurs. Modern and legacy
-   p-values/effects need not agree exactly.
-6. Adjust junction p-values by BH across **all tested junctions**. Separately
-   report all-feature BH, exon-only BH, gene Simes BH, and gene F-test BH.
-
-The default significance cutoff is `--fdr 0.05`. `usage_log2FC` is converted from
-edgeR's underlying natural-log usage coefficient. It is a relative feature-usage
-effect, not the gene-expression fold change. `--min-abs-log2 0` is the default
-optional effect-size filter. Changing it only changes `passes_effect_filter`;
-it is **not** a formal test against a nonzero effect-size threshold and does not
-change p-values or FDR. `significant` always refers to the junction FDR alone.
-
-`has_significant_junction` identifies membership in the junction-discovery list;
-it is not another gene-level FDR result. Gene tests include both exon and junction
-features. Select and report your primary testing family before interpreting
-results; testing several families does not provide one combined FDR guarantee.
-
-## Outputs
-
-| File | Meaning |
-|---|---|
-| `COMPLETE.txt` | Written only when all requested steps succeed; concise run summary |
-| `INCOMPLETE.txt` | Remains if a run fails; partial outputs are not a finished analysis |
-| `counts.tsv.gz`, `features.tsv.gz` | Raw input feature counts and annotation |
-| `junction_assignment.tsv.gz` | All observed junctions, assignment decisions and counts (BAM mode) |
-| `featurecounts_assignment.tsv` | Exon-counting assignment summary **after** common BAM filtering |
-| `filtering_results.tsv.gz` | Retained/excluded features and reasons |
-| `junctions_results.tsv.gz` | Usage effects, p-values, all-feature FDR, junction FDR and significance |
-| `exons_results.tsv.gz` | Exon effects and separate exon FDR |
-| `features_results.tsv.gz` | All tested features with all-feature FDR |
-| `genes_results.tsv.gz` | Gene Simes/F tests and significant-junction membership |
-| `junction_transcript_positions.tsv.gz` | All compatible transcript positions, when GTF and coordinates are available |
-| `flattened_exons.saf.tsv.gz`, `annotated_junctions.tsv.gz` | Derived annotation used by the run |
-| `normalization.tsv`, `design.tsv` | Library sizes, TMM factors and exact design matrix |
-| `diagnostics.pdf` | MDS, dispersion and junction volcano plots |
-| `analysis.rds` | Settings, samples and fitted models for further R analysis |
-| `settings.R`, `sessionInfo.txt`, `input_checksums.tsv` | Settings, package versions and MD5 checksums of small inputs/GTF |
-| `bam_manifest.tsv` | BAM paths, sizes and modification times; BAMs are not fully hashed |
-
-Transcript positions run from 5′ to 3′, using `(junction_rank - 0.5) / n_junctions`.
-A junction may appear in several transcripts and therefore several rows. **Do
-not count those rows as independent junction discoveries.** Novel junctions have
-missing transcript positions; no arbitrary transcript is assigned.
-
-## Optional GO enrichment
-
-Supply an explicit mapping of the pipeline's full `gene_id` values to `ENTREZID`,
-plus the matching organism database:
-
-```bash
-# Append to the BAM or count-table command:
-  --gene-map gene_to_entrez.tsv --go-orgdb org.Hs.eg.db
-```
-
-The mapping file needs `gene_id` and `ENTREZID` columns. No automatic Ensembl
-version stripping or species guessing occurs. One-to-many mappings are allowed
-and deduplicated at ENTREZID level. Check mapping coverage before interpretation.
-The background is the mapped set of **eligible, tested genes**, restricted further
-by the annotation available to GO. Biological Process enrichment runs separately
-for gene-Simes discoveries and genes containing significant junctions. Tables
-include BH-adjusted GO p-values; the two analyses must not be treated as
-independent confirmation. Universe/selection files document the mapping used.
-GO uses FDR-significant junctions, not the optional effect-size-filtered list.
-An empty discovery list yields an empty GO table.
-
-## Count-table input and reuse
-
-`--counts` requires a TSV whose first column is the unique feature ID and whose
-remaining columns are exact sample IDs. Values must be raw, finite, nonnegative
-integers. `--features` requires `feature_id`, `gene_id`, and `feature_type`
-(`exon` or `junction`); optional `chr`, `left`, `right`, `strand` enable transcript
-position annotation with `--gtf`. Files may be gzip-compressed. Counts and features
-must contain the same IDs; sample order is checked and aligned explicitly.
-BAM filtering options are rejected in this mode because they cannot change
-precomputed counts. The caller is responsible for consistent annotation and
-counting policy in supplied matrices.
+Replace the GTF path and sequencing settings. Add `--covariates batch` only if
+that column exists and belongs in the model. Standalone covariates are categorical;
+use the integrated entry point for continuous covariates or interaction contrasts.
 
 ```bash
 Rscript DEJUPipeline.R --help
-Rscript tests/test_pipeline.R
-Rscript tests/test_pipeline.R --bam
 ```
 
-## Provenance and limits
+For exact counting rules, thresholds, count-table formats, GO options and all
+output columns, see the [standalone DEJU reference](docs/DEJU.md).
 
-The five original pipelines share a core method but differ in validation and
-junction annotation handling; none can be certified as the version previously
-used successfully. A read-only marker scan of the saved R workspace found count
-and model-related objects, but no reliable embedded pipeline identity or run
-provenance. The original files and workspace have not been changed or uploaded.
+## 7. Analyze isoform switching with Salmon
 
-Synthetic tests check implementation behavior; they do not establish biological
-validity on the user's full experiment. Review library preparation, NH tagging,
-strandedness, duplicate handling, batches, replicate identity, annotation version
-and diagnostics before drawing conclusions. This first release focuses on a
-single two-condition comparison. It is not an exact reproduction of every default
-in the original scripts or the published DEJU workflow.
+`IsoformSwitchAnalysis.R` starts from existing Salmon `quant.sf` files. It tests
+whether transcripts change their fraction of a gene's expression. It does not
+run Salmon or infer transcript counts from a gene-count matrix.
 
-Method references: [DEJU paper](https://pmc.ncbi.nlm.nih.gov/articles/PMC12288301/),
-[authors' workflow](https://github.com/TamPham271299/DEJU),
-[edgeR manual](https://bioconductor.org/packages/release/bioc/manuals/edgeR/man/edgeR.pdf),
-[Rsubread manual](https://bioconductor.org/packages/release/bioc/manuals/Rsubread/man/Rsubread.pdf),
-[Rsamtools manual](https://bioconductor.org/packages/release/bioc/manuals/Rsamtools/man/Rsamtools.pdf).
+Install the additional packages, then try the synthetic example:
+
+```bash
+Rscript install_dependencies.R --isoform-switch
+Rscript IsoformSwitchAnalysis.R examples/isoform_switch/config.json --check
+Rscript IsoformSwitchAnalysis.R examples/isoform_switch/config.json
+```
+
+Outputs go to `results/example_isoform_switch`. This example disables optional
+consequence prediction and switch-gene plots. The module requires the current
+count-based IsoformSwitchAnalyzeR filter API; an incompatible older installation
+is reported during preflight.
+
+For real data, create `analysis/isoform_samples.tsv`:
+
+```tsv
+sample_id	condition	quant
+WT1	WT	/absolute/path/salmon/WT1/quant.sf
+WT2	WT	/absolute/path/salmon/WT2/quant.sf
+WT3	WT	/absolute/path/salmon/WT3/quant.sf
+KO1	KO	/absolute/path/salmon/KO1/quant.sf
+KO2	KO	/absolute/path/salmon/KO2/quant.sf
+KO3	KO	/absolute/path/salmon/KO3/quant.sf
+```
+
+Create `analysis/isoform_analysis.json`:
+
+```json
+{
+  "samples": "isoform_samples.tsv",
+  "gtf": "/absolute/path/reference/annotation.gtf",
+  "out": "../results/isoform_switch",
+  "comparisons": [
+    {"name": "KO_vs_WT", "reference": "WT", "treatment": "KO"}
+  ],
+  "covariates": {},
+  "alpha": 0.05,
+  "delta_if": 0.1,
+  "strip_pipe": false,
+  "consequences": false,
+  "predict_novel_orfs": false,
+  "plots": 10
+}
+```
+
+Run:
+
+```bash
+Rscript IsoformSwitchAnalysis.R analysis/isoform_analysis.json --check
+Rscript IsoformSwitchAnalysis.R analysis/isoform_analysis.json
+```
+
+All quantifications must use a consistent transcript reference matching the GTF.
+`alpha` controls the significance threshold; `delta_if` sets the minimum absolute
+change in isoform fraction. Positive dIF means greater usage in KO than WT.
+`strip_pipe` can be enabled for pipe-delimited transcript identifiers; version
+suffixes are preserved and ambiguous ID collisions are rejected.
+
+For annotated coding/NMD consequences, add a matching **transcript FASTA** and
+configure the optional stages as described in the [isoform-switch guide](docs/ISOFORM_SWITCH.md).
+That guide also covers batch/subject covariates, GO enrichment, sequence exports,
+and calling the module from `TranscriptomePipeline.py`.
+
+## 8. Add other analyses
+
+The integrated workflow selects modules through its JSON file. Adding a module
+also requires its inputs, settings and software; simply adding its name is not
+enough. These guides provide the additional configuration and interpretation:
+
+| Analysis | Setup guide |
+|---|---|
+| Event classification, PSI and ΔPSI | [rMATS event analysis](docs/INTEGRATED_WORKFLOW.md#event-classification-and-psi) |
+| Transcript assembly and novel-locus candidates | [StringTie/GffCompare analysis](docs/INTEGRATED_WORKFLOW.md#transcript-isoforms-and-novel-loci) |
+| Fusion candidates | [Arriba inputs and settings](docs/INTEGRATED_WORKFLOW.md#fusion-candidates) |
+| Coverage and junction-arc plots | [Locus coordinates and plotting](docs/INTEGRATED_WORKFLOW.md#locus-visualizations) |
+| Multiple conditions, interactions and continuous covariates | [Designs and contrasts](docs/INTEGRATED_WORKFLOW.md#model-specification) |
+
+After saving an expanded configuration, use the same check/run commands from
+section 4 with that file's path. General DGE/DEJU designs are not automatically
+applied to the separate rMATS or isoform-switch models. Novel loci and fusions
+are candidates for further investigation, not confirmed discoveries by themselves.
+
+To obtain reference files, list the supplied GENCODE v48 resources:
+
+```bash
+python3 references/DownloadReferences.py --list
+```
+
+Read the [reference guide](references/README.md) before downloading. It explains
+CHR/PRI/ALL annotations, genome versus transcript FASTA, checksums and matching
+the reference already used for alignment or quantification.
+
+## 9. Find and interpret results
+
+For an integrated run, begin with `report.html`, then inspect QC and the module
+folders. The following paths are relative to the configured output directory:
+
+| Output | What to inspect |
+|---|---|
+| `report.html` | Run overview, module status and links to tables/PDFs |
+| `COMPLETE.txt` / `INCOMPLETE.txt` | Whether every requested stage finished |
+| `logs/` | Commands and execution messages; start here after an error |
+| `dge/` | Gene statistics, normalized counts, PCA and diagnostic plots |
+| `dju/COMPARISON_NAME/` | Junction/exon usage statistics and diagnostics |
+| `native/` | Design and, for BAM analyses, alignment/assignment QC and gene counts |
+| `events/` | Splicing-event results, replicate PSI and ΔPSI |
+| `isoforms/` | Transcript assemblies, abundance and structural classifications |
+| `isoform_switch/` | Isoform-usage statistics and requested optional outputs |
+| `loci/` | Coverage and junction-arc PDFs |
+| `fusions/` | Fusion candidates and caller evidence |
+
+Standalone DEJU places files such as `junctions_results.tsv.gz` directly in its
+output directory. Standalone isoform switching similarly writes files such as
+`all_tested_isoforms.tsv` directly in its own output directory. Their layouts
+are documented in their respective guides.
+
+Read QC before interpreting significance. FDR adjustments belong to the stated
+analysis family/comparison; testing several modules does not create one combined
+FDR guarantee. Predicted ORF/NMD consequences and reconstructed structures require
+appropriate biological supporting evidence.
+
+## 10. Troubleshooting and further documentation
+
+| Message or symptom | What to check |
+|---|---|
+| `python3`, `Rscript` or another command is missing | The required program is installed and available in the current terminal environment |
+| `can't open file` or missing script | Run `pwd` and `ls`; enter the repository directory and use the exact filename/capitalization |
+| Missing input file | Replace placeholder paths; remember that JSON paths are relative to the JSON file and BAM/quant paths to the sample sheet |
+| Invalid JSON | Use double quotes, balanced brackets and no trailing commas; run `python3 -m json.tool analysis/bam_analysis.json` to check syntax |
+| Output directory exists | Choose a new `out` path; do not reuse a partial run's folder |
+| Count columns do not match samples | Match exact sample IDs or provide `count_column` mappings |
+| Confounded/rank-deficient design | Check condition/batch/subject assignments and replication; effects cannot be separated when the design confounds them |
+| Very few BAM alignments retained | Inspect NH tags, mapping quality, alignment flags and the alignment-QC table |
+| Missing/incompatible R package | Use a coherent R/Bioconductor installation and rerun the appropriate dependency command |
+
+**Validation status:** native DESeq2/DEJU analyses have synthetic count and BAM
+test coverage. External caller execution and the full IsoformSwitchAnalyzeR
+workflow still require end-to-end validation in a suitably provisioned environment.
+See [validation coverage and limitations](docs/VALIDATION_V0.2.md) for the exact scope.
+
+* [Detailed integrated configuration](docs/INTEGRATED_WORKFLOW.md)
+* [Standalone DEJU reference](docs/DEJU.md)
+* [Isoform-switch methods and outputs](docs/ISOFORM_SWITCH.md)
+* [Reference downloads and third-party reuse](references/README.md)
+* [Tests and synthetic examples](tests/README.md)
+* [Version history](CHANGES.md)
+
+Please cite the analysis methods used in a study. Method and software links are
+provided in the detailed guides and [reference resources](references/README.md).

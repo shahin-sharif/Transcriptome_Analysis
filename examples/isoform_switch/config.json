@@ -1,6 +1,6 @@
 {
   "samples": "samples.tsv",
-  "out": "../../../example_isoform_results",
+  "out": "../../results/example_isoform_switch",
   "gtf": "annotation.gtf",
   "transcript_fasta": "transcripts.fa",
   "comparisons": [

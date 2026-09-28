@@ -1,18 +1,50 @@
 {
   "samples": "samples.tsv",
   "gene_counts": "gene_counts.tsv",
-  "out": "../../../example_integrated_results",
-  "modules": ["dge"],
+  "out": "../../results/example_dge",
+  "modules": [
+    "dge"
+  ],
   "design": {
     "formula": "~ batch + condition * time",
-    "factors": {"batch": ["A", "B"], "condition": ["WT", "KO"]},
-    "numeric": ["time"]
+    "factors": {
+      "batch": [
+        "A",
+        "B"
+      ],
+      "condition": [
+        "WT",
+        "KO"
+      ]
+    },
+    "numeric": [
+      "time"
+    ]
   },
   "contrasts": [
-    {"name": "KO_vs_WT_at_time0", "weights": {"conditionKO": 1}},
-    {"name": "KO_vs_WT_at_time1", "weights": {"conditionKO": 1, "conditionKO:time": 1}},
-    {"name": "time_by_condition_interaction", "weights": {"conditionKO:time": 1}}
+    {
+      "name": "KO_vs_WT_at_time0",
+      "weights": {
+        "conditionKO": 1
+      }
+    },
+    {
+      "name": "KO_vs_WT_at_time1",
+      "weights": {
+        "conditionKO": 1,
+        "conditionKO:time": 1
+      }
+    },
+    {
+      "name": "time_by_condition_interaction",
+      "weights": {
+        "conditionKO:time": 1
+      }
+    }
   ],
-  "dge": {"min_count": 10, "min_samples": 2},
+  "dge": {
+    "min_count": 10,
+    "min_samples": 2
+  },
   "fdr": 0.05
 }

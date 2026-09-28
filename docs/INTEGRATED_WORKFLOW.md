@@ -261,14 +261,6 @@ INCOMPLETE.txt, stage status and partial outputs for diagnosis.
 * `fusions/`: per-sample calls, discarded calls and combined candidate table.
 * `loci/`: locus PDFs.
 
-## Isoform-switch analysis
-
-The original Salmon/DEXSeq/IsoformSwitchAnalyzeR scripts have been reviewed in
-[ISOFORM_SWITCH_REVIEW.md](ISOFORM_SWITCH_REVIEW.md). A standalone module callable
-from this orchestrator is recommended. It is deliberately not enabled during
-this inspection-first step. Salmon quantifications and their matching transcript
-annotation are needed; a gene-count matrix cannot recover isoform fractions.
-
 ## Method sources
 
 [DESeq2](https://bioconductor.org/packages/release/bioc/vignettes/DESeq2/inst/doc/DESeq2.html),

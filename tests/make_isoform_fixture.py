@@ -49,7 +49,7 @@ def make_fixture(out):
             samples.append([sid,condition,f'{sid}/quant.sf'])
     with (out/'samples.tsv').open('w') as fh:
         w=csv.writer(fh,delimiter='\t',lineterminator='\n');w.writerow(['sample_id','condition','quant']);w.writerows(samples)
-    config={'samples':'samples.tsv','out':'../../../example_isoform_results','gtf':'annotation.gtf','transcript_fasta':'transcripts.fa',
+    config={'samples':'samples.tsv','out':'../../results/example_isoform_switch','gtf':'annotation.gtf','transcript_fasta':'transcripts.fa',
       'comparisons':[{'name':'treated_vs_control','reference':'control','treatment':'treated'}],
       'covariates':{},'alpha':.05,'delta_if':.1,'filter':{'iso_count':10,'count_proportion':.7,'if_cutoff':.01,'if_proportion':.5},
       'strip_pipe':False,'consequences':False,'predict_novel_orfs':False,'plots':0}
