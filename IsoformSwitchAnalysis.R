@@ -35,12 +35,8 @@ is_run <- function(cfg,check=FALSE) {
       is_write(data.frame(sample_id=d$meta$sample_id,pc$x),file.path(out,'pca.tsv'))
     }
   },finally=grDevices::dev.off())
-  sw <- is_api('importRdata',list(isoformCountMatrix=matrix_table(txi$counts),isoformRepExpression=matrix_table(txi$abundance),
-    designMatrix=d$design,isoformExonAnnoation=cfg$gtf,isoformNtFasta=cfg$transcript_fasta,
-    comparisonsToMake=d$comparisons[,c('condition_1','condition_2')],detectUnwantedEffects=FALSE,
-    addAnnotatedORFs=cfg$consequences,removeNonConvensionalChr=FALSE,removeTECgenes=FALSE,
-    ignoreAfterBar=cfg$strip_pipe,ignoreAfterSpace=TRUE,ignoreAfterPeriod=FALSE,ignoreSurplusIsoforms=FALSE,
-    autoCastDesignCol=FALSE,estimateDifferentialGeneRange=FALSE))
+  sw <- is_api('importRdata',is_import_args(cfg,d$design,
+    d$comparisons[,c('condition_1','condition_2')],matrix_table(txi$counts),matrix_table(txi$abundance)))
   imported <- unique(sw$isoformFeatures$isoform_id)
   f <- cfg$filter
   sw <- is_api('preFilter',list(switchAnalyzeRlist=sw,isoCount=f$iso_count,min.Count.prop=f$count_proportion,

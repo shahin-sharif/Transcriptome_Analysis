@@ -93,10 +93,26 @@ is_design <- function(cfg) {
   }
   list(meta=meta,design=design,comparisons=comparisons)
 }
+# Keep import arguments shared between preflight and execution. The release
+# importRdata API does not have the development-only autoCastDesignCol argument.
+is_import_args <- function(cfg,design=NULL,comparisons=NULL,counts=NULL,abundance=NULL) {
+  list(isoformCountMatrix=counts,isoformRepExpression=abundance,
+    designMatrix=design,isoformExonAnnoation=cfg$gtf,isoformNtFasta=cfg$transcript_fasta,
+    comparisonsToMake=comparisons,detectUnwantedEffects=FALSE,
+    addAnnotatedORFs=cfg$consequences,removeNonConvensionalChr=FALSE,removeTECgenes=FALSE,
+    ignoreAfterBar=cfg$strip_pipe,ignoreAfterSpace=TRUE,ignoreAfterPeriod=FALSE,
+    ignoreSurplusIsoforms=FALSE,estimateDifferentialGeneRange=FALSE)
+}
+is_check_api <- function(name,arg_names,fn=getExportedValue('IsoformSwitchAnalyzeR',name)) {
+  missing <- setdiff(arg_names,names(formals(fn)))
+  is_assert(!length(missing),paste('Unsupported IsoformSwitchAnalyzeR API for',name,
+    '; wrapper arguments absent from the installed function:',paste(missing,collapse=', '),
+    '. Check wrapper/package compatibility; upgrading alone may not fix this.'))
+  invisible(TRUE)
+}
 is_api <- function(name,args) {
   fn <- getExportedValue('IsoformSwitchAnalyzeR',name)
-  is_assert(all(names(args) %in% names(formals(fn))),paste('Unsupported IsoformSwitchAnalyzeR API for',name,
-    '; install a current Bioconductor release. Missing:',paste(setdiff(names(args),names(formals(fn))),collapse=', ')))
+  is_check_api(name,names(args),fn)
   do.call(fn,args)
 }
 is_dependencies <- function(cfg) {
@@ -104,6 +120,7 @@ is_dependencies <- function(cfg) {
   if(!is.null(cfg$go)) pkgs <- c(pkgs,'clusterProfiler','AnnotationDbi',cfg$go$orgdb)
   missing <- pkgs[!vapply(pkgs,requireNamespace,logical(1),quietly=TRUE)]
   is_assert(!length(missing),paste('Install required packages:',paste(missing,collapse=', ')))
+  is_check_api('importRdata',names(is_import_args(cfg)))
   # Explicitly require the count-based filter API; never reinterpret old TPM cutoffs.
   is_assert(all(c('isoCount','min.Count.prop','min.IF.prop') %in% names(formals(IsoformSwitchAnalyzeR::preFilter))),
     'This module requires the current count-based IsoformSwitchAnalyzeR preFilter API (documented in 2.12); older releases need a coherent R/Bioconductor upgrade')

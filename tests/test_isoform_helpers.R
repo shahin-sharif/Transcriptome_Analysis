@@ -5,6 +5,13 @@ source(file.path(root,'IsoformSwitchHelpers.R'))
 source(file.path(root,'IsoformSwitchAnalysis.R'))
 fails <- function(expr) inherits(tryCatch({force(expr);NULL},error=identity),'error')
 cfg <- is_config(file.path(root,'examples/isoform_switch/config.json'))
+# A release-style import function deliberately lacks the development-only option.
+import_args <- is_import_args(cfg)
+stopifnot(!'autoCastDesignCol' %in% names(import_args))
+release_import <- function() NULL
+formals(release_import) <- as.pairlist(setNames(rep(list(NULL),length(import_args)),names(import_args)))
+stopifnot(is_check_api('importRdata',names(import_args),release_import))
+stopifnot(fails(is_check_api('importRdata',c(names(import_args),'autoCastDesignCol'),release_import)))
 d <- is_design(cfg)
 stopifnot(nrow(d$meta)==6,d$comparisons$condition_1=='control',d$comparisons$condition_2=='treated')
 stopifnot(fails(is_id(c('a|one','a|two'),TRUE)))

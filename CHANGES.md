@@ -1,3 +1,10 @@
+# Isoform import compatibility fix
+
+Removed a development-only `importRdata` argument that is absent from the
+Bioconductor 3.23 IsoformSwitchAnalyzeR 2.12.0 release. Preflight now validates
+the same import arguments used at runtime. API errors identify wrapper/package
+incompatibility instead of assuming that an upgrade is the solution.
+
 # v0.2.0 — integrated transcriptome analysis
 
 Added integrated DESeq2/DJU orchestration, independent gene-fragment counting,
