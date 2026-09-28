@@ -1,6 +1,7 @@
 #!/usr/bin/env Rscript
 # Differential exon/junction usage: joint exon + junction negative-binomial model.
-DEJU_VERSION <- '0.1.0'
+DEJU_VERSION <- '0.2.0'
+`%||DEJU%` <- function(x,y) if (is.null(x)) y else x
 
 # Locate the helper beside this file both for Rscript and source().
 .deju_file <- tryCatch(sys.frame(1)$ofile, error=function(e) NULL)
@@ -14,7 +15,8 @@ source(file.path(dirname(normalizePath(.deju_file, mustWork=TRUE)), 'DEJUHelpers
 # Pre-filtering also applies to junctions, which featureCounts may collect independently
 # of exon assignment. Unique mapping still requires the aligner's NH tag.
 deju_count_bams <- function(samples, annotation, outdir, paired, strand, threads=1L,
-                            min_mapq=10L, remove_duplicates=FALSE) {
+                            min_mapq=10L, remove_duplicates=FALSE, pre_filtered=FALSE,
+                            min_anchor=8L, min_intron=20L, max_intron=1000000L) {
   deju_require(c('Rsubread','Rsamtools'))
   scratch <- file.path(outdir, 'counting_tmp'); dir.create(scratch)
   on.exit(unlink(scratch, recursive=TRUE), add=TRUE)
@@ -22,7 +24,8 @@ deju_count_bams <- function(samples, annotation, outdir, paired, strand, threads
   flags <- Rsamtools::scanBamFlag(isUnmappedQuery=FALSE, isSecondaryAlignment=FALSE,
                                  isSupplementaryAlignment=FALSE, isNotPassingQualityControls=FALSE,
                                  isDuplicate=if (remove_duplicates) FALSE else NA)
-  for (i in seq_len(nrow(samples))) {
+  if (pre_filtered) filtered <- samples$bam
+  for (i in if (pre_filtered) integer() else seq_len(nrow(samples))) {
     # No genomic insert-size filter: it would reject ordinary spliced RNA pairs.
     Rsamtools::filterBam(samples$bam[i], filtered[i], index=character(),
                         param=Rsamtools::ScanBamParam(flag=flags, mapqFilter=min_mapq, tagFilter=list(NH=1L)))
@@ -37,7 +40,7 @@ deju_count_bams <- function(samples, annotation, outdir, paired, strand, threads
   ef <- data.frame(feature_id=paste0('E:',ex$GeneID,':',ex$Chr,':',ex$Start,':',ex$End,':',ex$Strand),
                    gene_id=as.character(ex$GeneID), feature_type='exon', chr=as.character(ex$Chr),
                    left=ex$Start, right=ex$End, strand=ex$Strand, stringsAsFactors=FALSE)
-  junction_data <- deju_junction_counts(filtered,samples$sample_id,paired,strand)
+  junction_data <- deju_junction_counts(filtered,samples$sample_id,paired,strand,min_anchor=min_anchor,min_intron=min_intron,max_intron=max_intron)
   jc <- junction_data$counts
   ja <- deju_assign_junctions(junction_data$annotation,annotation)
   deju_write(cbind(ja,setNames(as.data.frame(jc),samples$sample_id)), file.path(outdir,'junction_assignment.tsv.gz'))
@@ -47,7 +50,7 @@ deju_count_bams <- function(samples, annotation, outdir, paired, strand, threads
   jf <- data.frame(feature_id=paste0('J:',ja$gene_id,':',ja$chr,':',ja$left,':',ja$right,':',ja$strand),
                    gene_id=ja$gene_id, feature_type='junction', chr=ja$chr,
                    left=ja$left, right=ja$right, strand=ja$strand, stringsAsFactors=FALSE)
-  deju_assert(!anyDuplicated(jf$feature_id), 'Duplicate junction coordinates in featureCounts output')
+  deju_assert(!anyDuplicated(jf$feature_id), 'Duplicate assigned junction coordinates')
   f <- rbind(ef,jf); counts <- rbind(ecounts,jc)
   rownames(counts) <- f$feature_id; colnames(counts) <- samples$sample_id
   stat <- fc$stat; names(stat)[-1] <- samples$sample_id
@@ -56,14 +59,14 @@ deju_count_bams <- function(samples, annotation, outdir, paired, strand, threads
 }
 
 deju_fit <- function(counts, features, samples, reference, treatment, covariates=character(),
-                     engine='modern', min_count=10, min_total_count=15, fdr=0.05, min_abs_log2=0) {
+                     engine='modern', min_count=10, min_total_count=15, fdr=0.05, min_abs_log2=0, design_override=NULL) {
   deju_require(c('edgeR','limma','statmod'))
   deju_assert(engine %in% c('modern','legacy'), 'engine must be modern or legacy')
   deju_assert(utils::packageVersion('edgeR') >= '4.0.0', 'edgeR >= 4.0.0 is required')
   if (engine=='modern') deju_assert(!is.null(getS3method('diffSplice','DGEGLM',optional=TRUE,envir=asNamespace('limma'))),
     'Modern engine requires edgeR with diffSplice.DGEGLM; install current edgeR/limma or explicitly choose --engine legacy')
   counts <- deju_validate_counts(counts,features,samples)
-  design <- deju_design(samples,reference,treatment,covariates)
+  design <- design_override %||DEJU% deju_design(samples,reference,treatment,covariates)
   deju_assert(all(colSums(counts)>0), 'A sample has a zero count library')
   y <- edgeR::DGEList(counts=counts,genes=features)
   expressed <- edgeR::filterByExpr(y,design=design$matrix,min.count=min_count,min.total.count=min_total_count)
@@ -82,11 +85,11 @@ deju_fit <- function(counts, features, samples, reference, treatment, covariates
   y <- edgeR::estimateDisp(y,design$matrix,robust=TRUE)
   fit <- edgeR::glmQLFit(y,design$matrix,robust=TRUE,legacy=(engine=='legacy'))
   if (engine=='modern') {
-    sp <- limma::diffSplice(fit,coef=design$coef,geneid='gene_id',exonid='feature_id',robust=TRUE,verbose=FALSE)
+    sp <- limma::diffSplice(fit,coef=design$coef %||DEJU% ncol(design$matrix),contrast=design$contrast,geneid='gene_id',exonid='feature_id',robust=TRUE,verbose=FALSE)
     pv <- as.numeric(sp$p.value)
     gs <- as.numeric(sp$gene.simes.p.value); gf <- as.numeric(sp$gene.F.p.value)
   } else {
-    sp <- edgeR::diffSpliceDGE(fit,coef=design$coef,geneid='gene_id',exonid='feature_id',robust=TRUE,verbose=FALSE)
+    sp <- edgeR::diffSpliceDGE(fit,coef=design$coef %||DEJU% ncol(design$matrix),contrast=design$contrast,geneid='gene_id',exonid='feature_id',robust=TRUE,verbose=FALSE)
     pv <- as.numeric(sp$exon.p.value)
     gs <- as.numeric(sp$gene.Simes.p.value); gf <- as.numeric(sp$gene.p.value)
   }
@@ -148,7 +151,7 @@ deju_plots <- function(r,outdir) {
        ylab='-log10 junction BH FDR',main='Differential junction usage')
 }
 
-deju_help <- function() cat('DEJUPipeline 0.1.0\n',
+deju_help <- function() cat('DEJUPipeline 0.2.0\n',
  'BAM analysis:\n  Rscript DEJUPipeline.R --samples samples.tsv --gtf annotation.gtf --paired true --strand 2 --reference WT --treatment KO --out results\n',
  'Count-table analysis:\n  Rscript DEJUPipeline.R --samples samples.tsv --counts counts.tsv --features features.tsv --reference WT --treatment KO --out results\n',
  'Options (each needs a value):\n',

@@ -1,3 +1,24 @@
+# v0.2.0 — integrated transcriptome analysis
+
+Added integrated DESeq2/DJU orchestration, independent gene-fragment counting,
+explicit general fixed-effect designs and numeric contrasts, BAM/filter QC,
+DESeq2 diagnostics/Cook's exports, locus coverage/junction-arc plots and run
+reports. Added specialist adapters for rMATS event/PSI analysis, StringTie and
+GffCompare assembly/quantification/candidate classification, and Arriba fusions.
+Added explicit splice-anchor/intron filters to native junction counting.
+
+Added a standalone/integrated Salmon → tximport → IsoformSwitchAnalyzeR/DEXSeq
+module with explicit sample/ID/design validation, count/IF filtering, complete
+tested results, comparison-specific gene summaries, and optional CDS-preserving
+consequences, sequence export, switch plots and GO with the tested universe.
+See docs/ISOFORM_SWITCH.md and the review of the original scripts. Added small
+synthetic isoform fixtures, a GENCODE v48 checksum manifest/download helper, and
+reference/software reuse guidance.
+
+Native statistical/counting tests passed. External caller adapters have
+contract/parser tests, not full caller validation; the complete isoform-switch
+package run is also pending its dependencies. See docs/VALIDATION_V0.2.md.
+
 # Consolidation into DEJUPipeline 0.1.0
 
 The original five pipelines and `deju_helpers.R` were reviewed together. Version

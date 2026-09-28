@@ -1,0 +1,7 @@
+sample_id	condition	quant
+control1	control	control1/quant.sf
+control2	control	control2/quant.sf
+control3	control	control3/quant.sf
+treated1	treated	treated1/quant.sf
+treated2	treated	treated2/quant.sf
+treated3	treated	treated3/quant.sf

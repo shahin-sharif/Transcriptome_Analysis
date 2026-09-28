@@ -1,0 +1,59 @@
+{
+  "provider": "GENCODE/EMBL-EBI",
+  "species": "Homo sapiens",
+  "release": 48,
+  "assembly": "GRCh38.p14",
+  "source_page": "https://www.gencodegenes.org/human/release_48.html",
+  "checksum_source": "https://ftp.ebi.ac.uk/pub/databases/gencode/Gencode_human/release_48/MD5SUMS",
+  "checked_date": "2026-09-27",
+  "files": [
+    {
+      "id": "annotation_chr",
+      "filename": "gencode.v48.annotation.gtf.gz",
+      "regions": "CHR",
+      "url": "https://ftp.ebi.ac.uk/pub/databases/gencode/Gencode_human/release_48/gencode.v48.annotation.gtf.gz",
+      "checksum_algorithm": "md5",
+      "checksum": "3eb94f7f200b42eb85d56b3afae5b0e7"
+    },
+    {
+      "id": "annotation_all",
+      "filename": "gencode.v48.chr_patch_hapl_scaff.annotation.gtf.gz",
+      "regions": "ALL",
+      "url": "https://ftp.ebi.ac.uk/pub/databases/gencode/Gencode_human/release_48/gencode.v48.chr_patch_hapl_scaff.annotation.gtf.gz",
+      "checksum_algorithm": "md5",
+      "checksum": "f7ffc813464f52e428c116bc3b83dce1"
+    },
+    {
+      "id": "annotation_primary",
+      "filename": "gencode.v48.primary_assembly.annotation.gtf.gz",
+      "regions": "PRI",
+      "url": "https://ftp.ebi.ac.uk/pub/databases/gencode/Gencode_human/release_48/gencode.v48.primary_assembly.annotation.gtf.gz",
+      "checksum_algorithm": "md5",
+      "checksum": "1b68ecb47fd4cc3946819fec58a59d8f"
+    },
+    {
+      "id": "genome_all",
+      "filename": "GRCh38.p14.genome.fa.gz",
+      "regions": "ALL",
+      "url": "https://ftp.ebi.ac.uk/pub/databases/gencode/Gencode_human/release_48/GRCh38.p14.genome.fa.gz",
+      "checksum_algorithm": "md5",
+      "checksum": "4e50894cd0f6d8d2769ad4a0c82913d6"
+    },
+    {
+      "id": "genome_primary",
+      "filename": "GRCh38.primary_assembly.genome.fa.gz",
+      "regions": "PRI",
+      "url": "https://ftp.ebi.ac.uk/pub/databases/gencode/Gencode_human/release_48/GRCh38.primary_assembly.genome.fa.gz",
+      "checksum_algorithm": "md5",
+      "checksum": "42e38e8dd5027dd2ae8aeb8f3a990d07"
+    },
+    {
+      "id": "transcripts_all",
+      "filename": "gencode.v48.transcripts.fa.gz",
+      "regions": "ALL",
+      "url": "https://ftp.ebi.ac.uk/pub/databases/gencode/Gencode_human/release_48/gencode.v48.transcripts.fa.gz",
+      "checksum_algorithm": "md5",
+      "checksum": "e4a4d396cca5dd6d0889248b9e93b42a"
+    }
+  ]
+}

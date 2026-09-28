@@ -55,7 +55,7 @@ sam<-file.path(tmp,'cigar.sam')
 writeLines(c('@HD\tVN:1.6\tSO:unsorted','@SQ\tSN:chr1\tLN:1000',
   paste('complex',16,'chr1',100,60,'5S10M100N5M2D5M100N10M','*',0,0,strrep('A',35),strrep('I',35),'NH:i:1',sep='\t')),sam)
 Rsamtools::asBam(sam,destination=file.path(tmp,'cigar'),overwrite=TRUE)
-cigar<-deju_junction_counts(file.path(tmp,'cigar.bam'),'one',FALSE,2,yield_size=1L)
+cigar<-deju_junction_counts(file.path(tmp,'cigar.bam'),'one',FALSE,2,yield_size=1L,min_anchor=0L)
 stopifnot(identical(cigar$annotation$left,c(109L,221L)),identical(cigar$annotation$right,c(210L,322L)),
           all(cigar$counts==1),all(cigar$annotation$read_strand=='+'))
 cat('PASS: multi-junction CIGAR, clipping, deletion and reverse-strand coordinates\n')

@@ -1,0 +1,26 @@
+{
+  "samples": "samples.tsv",
+  "out": "../../../example_isoform_results",
+  "gtf": "annotation.gtf",
+  "transcript_fasta": "transcripts.fa",
+  "comparisons": [
+    {
+      "name": "treated_vs_control",
+      "reference": "control",
+      "treatment": "treated"
+    }
+  ],
+  "covariates": {},
+  "alpha": 0.05,
+  "delta_if": 0.1,
+  "filter": {
+    "iso_count": 10,
+    "count_proportion": 0.7,
+    "if_cutoff": 0.01,
+    "if_proportion": 0.5
+  },
+  "strip_pipe": false,
+  "consequences": false,
+  "predict_novel_orfs": false,
+  "plots": 0
+}

@@ -223,8 +223,9 @@ deju_validate_counts <- function(counts, features, samples) {
 
 # Count N CIGAR operations directly so strand and filtering apply equally to
 # junctions and exon reads. One alignment contributes once per crossed intron.
-deju_junction_counts <- function(files,sample_ids,paired,strand,yield_size=250000L) {
+deju_junction_counts <- function(files,sample_ids,paired,strand,yield_size=250000L,min_anchor=8L,min_intron=20L,max_intron=1000000L) {
   deju_require(c('Rsamtools','GenomicAlignments'))
+  deju_assert(min_anchor>=0 && min_intron>=1 && max_intron>=min_intron,'Invalid junction filters')
   one <- function(path) {
     bf <- Rsamtools::BamFile(path,yieldSize=yield_size); open(bf); on.exit(close(bf))
     totals <- new.env(hash=TRUE,parent=emptyenv())
@@ -245,7 +246,20 @@ deju_junction_counts <- function(files,sample_ids,paired,strand,yield_size=25000
       if (strand==2L) negative <- !negative
       orientation <- if (strand==0L) rep('*',length(negative)) else ifelse(negative,'-','+')
       key <- paste(rep(as.character(b$rname),n),IRanges::start(introns)-1L,IRanges::end(introns)+1L,rep(orientation,n),sep='\t')
-      tab <- table(key)
+      ops <- GenomicAlignments::explodeCigarOps(b$cigar)
+      widths <- GenomicAlignments::explodeCigarOpLengths(b$cigar)
+      anchors <- unlist(Map(function(op,w) {
+        at<-which(op=='N')
+        vapply(at,function(k) {
+          left<-0;right<-0;j<-k-1L
+          while(j>=1L && op[j] %in% c('M','=','X')) {left<-left+w[j];j<-j-1L}
+          j<-k+1L
+          while(j<=length(op) && op[j] %in% c('M','=','X')) {right<-right+w[j];j<-j+1L}
+          min(left,right)>=min_anchor
+        },logical(1))
+      },ops,widths),use.names=FALSE)
+      keep<-anchors & IRanges::width(introns)>=min_intron & IRanges::width(introns)<=max_intron
+      tab <- table(key[keep])
       for (k in names(tab)) {
         prior <- totals[[k]]; if (is.null(prior)) prior<-0
         totals[[k]] <- prior+as.numeric(tab[[k]])

@@ -1,4 +1,39 @@
-# RNA-seq analysis
+# Transcriptome_Analysis
+
+## Integrated workflow (0.2.0)
+
+`TranscriptomePipeline.py` is the new configurable entry point. It supports
+DESeq2 gene-expression analysis, general-design DEJU, rMATS event/PSI analysis,
+StringTie/GffCompare transcript reconstruction and quantification, Arriba fusion
+candidates, locus plots and an HTML run report. Native R functions and external
+caller adapters have different validation levels; see the validation document.
+
+* [Configuration, modules and input requirements](docs/INTEGRATED_WORKFLOW.md)
+* [Validation and remaining limits](docs/VALIDATION_V0.2.md)
+* [Salmon/DEXSeq isoform-switch analysis](docs/ISOFORM_SWITCH.md)
+* [Original isoform pipeline review](docs/ISOFORM_SWITCH_REVIEW.md)
+* [Reference downloads, checksums and reuse guidance](references/README.md)
+
+`IsoformSwitchAnalysis.R` is a dedicated Salmon/DEXSeq isoform-switch workflow,
+callable independently or through `isoform_switch` in the main pipeline. It
+retains all tested results and adds optional consequence prediction, plots and GO.
+It is distinct from StringTie transcript reconstruction/quantification.
+
+**Validation:** native DESeq2/DEJU count and BAM tests passed. External callers
+and the complete IsoformSwitchAnalyzeR analysis still require execution testing
+in an environment with those dependencies. No real experimental dataset has
+been validated for this expanded release. See the validation document.
+
+```bash
+Rscript install_dependencies.R
+python3 TranscriptomePipeline.py --config examples/integrated/config.json --check
+python3 TranscriptomePipeline.py --config examples/integrated/config.json
+```
+
+The original standalone DEJU command remains available below. New junction
+counting defaults require 8 contiguous aligned bases on each side of a splice
+gap and intron lengths of 20..1,000,000 bases. The integrated config exposes
+these thresholds; set them appropriately for the organism and alignment policy.
 
 ## DEJU: differential exon and junction usage
 
@@ -11,7 +46,7 @@ This measures **relative usage**, not PSI, absolute expression, or differential
 transcript abundance. A significant gene-level test can be driven by an exon;
 it does not necessarily identify a significant junction.
 
-Version: **0.1.0**. Both files must remain together. Sourcing either file does not
+DEJU version: **0.2.0**. Both files must remain together. Sourcing either file does not
 launch an analysis. See [CHANGES.md](CHANGES.md) for the consolidation decisions
 and [tests/README.md](tests/README.md) for what has been tested.
 

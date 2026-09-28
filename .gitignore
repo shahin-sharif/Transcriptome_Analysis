@@ -10,3 +10,10 @@ example_results/
 DEJU_*/
 .Renviron
 .DS_Store
+
+__pycache__/
+*.pyc
+example_integrated_results/
+
+references/downloads/
+example_isoform_results/

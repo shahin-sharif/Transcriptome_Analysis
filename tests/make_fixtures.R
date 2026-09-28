@@ -18,7 +18,7 @@ make_count_fixture <- function(path) {
   write.table(data.frame(feature_id=rownames(counts),counts),file.path(path,'counts.tsv'),sep='\t',quote=FALSE,row.names=FALSE)
 }
 
-make_bam_fixture <- function(path,paired=FALSE) {
+make_bam_fixture <- function(path,paired=FALSE,biological_variation=FALSE) {
   dir.create(path,recursive=TRUE,showWarnings=FALSE)
   gtf <- character()
   for (g in 1:24) {
@@ -29,6 +29,7 @@ make_bam_fixture <- function(path,paired=FALSE) {
   writeLines(gtf,file.path(path,'annotation.gtf'))
   samples<-data.frame(sample_id=paste0('S',1:6),condition=rep(c('WT','KO'),each=3),bam=paste0('S',1:6,'.bam'))
   set.seed(131)
+  abundance<-if(biological_variation) matrix(rlnorm(24*6,meanlog=-.1,sdlog=.5),24,6) else matrix(1,24,6)
   for (s in 1:6) {
     lines<-c('@HD\tVN:1.6\tSO:unsorted','@SQ\tSN:chrTest\tLN:100000')
     k<-0L
@@ -42,9 +43,9 @@ make_bam_fixture <- function(path,paired=FALSE) {
     }
     for (g in 1:24) {
       start<-g*1000
-      for (e in 0:2) for (z in seq_len(30L+(g+s+e)%%8)) add(start+e*150+10,'20M')
+      for (e in 0:2) for (z in seq_len(as.integer((30L+(g+s+e)%%8)*abundance[g,s]))) add(start+e*150+10,'20M')
       for (e in 0:1) {
-        n<-30L+(g+s+e)%%8
+        n<-as.integer((30L+(g+s+e)%%8)*abundance[g,s])
         if (g==1 && e==0 && s>3) n<-n*8L
         for (z in seq_len(n)) add(start+e*150+40,'10M100N10M')
       }

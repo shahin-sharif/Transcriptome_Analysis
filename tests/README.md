@@ -49,3 +49,22 @@ A separate local check exercised optional GO with the installed organism databas
 No full experimental RNA-seq dataset has been validated with this release.
 Passing fixtures demonstrate tested software behavior, not absence of every bug
 or biological correctness of an unspecified experiment.
+
+## Integrated v0.2 tests
+
+See [v0.2 validation](../docs/VALIDATION_V0.2.md). Run `python3 tests/test_integrated.py` for adapter/report contracts and `Rscript tests/test_native_v2.R --bam` for the integrated native statistics/counting/plotting checks. External caller tests are explicitly distinct from actual caller execution.
+
+## Isoform and reference tests
+
+```bash
+Rscript tests/test_isoform_helpers.R
+python3 tests/test_references.py
+# Requires a current compatible IsoformSwitchAnalyzeR installation:
+Rscript tests/test_isoform_helpers.R --full
+```
+
+The default isoform tests execute tximport and annotation checks, not the absent
+IsoformSwitchAnalyzeR package. The optional full test asserts five planted gene
+switches and their directions. Regenerate the deterministic example inputs with
+`python3 tests/make_isoform_fixture.py`. They are synthetic Salmon-shaped data.
+Reference tests use an in-memory stream, never download a human genome.
