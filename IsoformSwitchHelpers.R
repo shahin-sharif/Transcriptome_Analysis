@@ -115,11 +115,22 @@ is_api <- function(name,args) {
   is_check_api(name,names(args),fn)
   do.call(fn,args)
 }
+is_prepare_runtime <- function() {
+  is_assert(requireNamespace('dplyr',quietly=TRUE),'Install dplyr for isoform filtering')
+  required <- c('rename_with','inner_join','pull','rowwise','across','do','ungroup')
+  is_assert(all(required %in% getNamespaceExports('dplyr')),
+            'Installed dplyr lacks functions required by IsoformSwitchAnalyzeR filtering')
+  # The 2.12 release calls these verbs without importing them in NAMESPACE.
+  # Attach the dependency normally; do not alter installed package namespaces.
+  if(!'package:dplyr' %in% search()) suppressPackageStartupMessages(library('dplyr',character.only=TRUE))
+  invisible(TRUE)
+}
 is_dependencies <- function(cfg) {
-  pkgs <- c('tximport','IsoformSwitchAnalyzeR','DEXSeq','rtracklayer','Biostrings','jsonlite')
+  pkgs <- c('tximport','IsoformSwitchAnalyzeR','DEXSeq','rtracklayer','Biostrings','jsonlite','dplyr')
   if(!is.null(cfg$go)) pkgs <- c(pkgs,'clusterProfiler','AnnotationDbi',cfg$go$orgdb)
   missing <- pkgs[!vapply(pkgs,requireNamespace,logical(1),quietly=TRUE)]
   is_assert(!length(missing),paste('Install required packages:',paste(missing,collapse=', ')))
+  is_prepare_runtime()
   is_check_api('importRdata',names(is_import_args(cfg)))
   # Explicitly require the count-based filter API; never reinterpret old TPM cutoffs.
   is_assert(all(c('isoCount','min.Count.prop','min.IF.prop') %in% names(formals(IsoformSwitchAnalyzeR::preFilter))),

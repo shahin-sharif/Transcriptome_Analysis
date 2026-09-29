@@ -4,6 +4,13 @@ root <- dirname(dirname(normalizePath(script)))
 source(file.path(root,'IsoformSwitchHelpers.R'))
 source(file.path(root,'IsoformSwitchAnalysis.R'))
 fails <- function(expr) inherits(tryCatch({force(expr);NULL},error=identity),'error')
+# Reproduce lookup of an unimported dplyr verb from a package namespace.
+is_prepare_runtime()
+package_call <- function(x) rename_with(x,toupper)
+environment(package_call) <- asNamespace('stats')
+stopifnot(identical(names(package_call(data.frame(a=1))), 'A'))
+stopifnot(all(vapply(c('inner_join','pull','rowwise','across','do','ungroup'),
+  exists,logical(1),envir=asNamespace('stats'),mode='function',inherits=TRUE)))
 cfg <- is_config(file.path(root,'examples/isoform_switch/config.json'))
 # A release-style import function deliberately lacks the development-only option.
 import_args <- is_import_args(cfg)

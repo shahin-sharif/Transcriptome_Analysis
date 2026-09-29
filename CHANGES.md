@@ -1,3 +1,9 @@
+# Isoform filtering dependency fix
+
+Explicitly load dplyr for the released IsoformSwitchAnalyzeR filter, which calls
+several dplyr verbs without importing them. Preflight checks their availability.
+This does not change filtering thresholds or enable surrogate-variable adjustment.
+
 # Isoform import compatibility fix
 
 Removed a development-only `importRdata` argument that is absent from the

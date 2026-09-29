@@ -16,7 +16,9 @@ transcripts or run Salmon; the separate `isoforms` module handles assembly.
 Use a coherent current R/Bioconductor installation. The module requires the
 count-based `IsoformSwitchAnalyzeR::preFilter` interface documented in version
 2.12; the older TPM-based interface is rejected rather than silently reinterpreted.
-Exact installed package versions and session information are saved with each run.
+The wrapper explicitly loads dplyr because the released package filter calls
+some dplyr functions without importing them. This dependency is checked in
+preflight. Exact installed package versions and session information are saved with each run.
 
 ```bash
 Rscript install_dependencies.R --isoform-switch
@@ -91,7 +93,11 @@ Covariates are explicitly typed `factor` or `numeric`; batch/subject columns are
 retained. The wrapper checks each two-group design for confounding and residual
 degrees of freedom. It rejects sparse numeric covariates that the upstream DEXSeq
 wrapper would silently recast as categorical. Automatic unwanted-factor discovery
-is disabled. This wrapper uses the package's pairwise usage model; it does not
+is disabled. The package may still estimate the number of latent factors and
+warn that they were not added. That warning is not proof of a known experimental
+batch or the cause of an execution failure. Explicitly supplied covariates remain
+in the design; choose them from the experiment and review QC before real-data
+interpretation. This wrapper uses the package's pairwise usage model; it does not
 accept arbitrary interaction contrasts like the native DGE/DEJU modules do.
 Package IF/dIF effect estimates may incorporate its confounder adjustment; the
 raw TPM exports and PCA remain unadjusted descriptive QC.
