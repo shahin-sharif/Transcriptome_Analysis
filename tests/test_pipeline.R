@@ -34,6 +34,14 @@ stopifnot(identical(a$junctions$left,c(150L,250L)),identical(a$junctions$donor,c
 x<-data.frame(chr='chr1',chr2='chr1',left=c(150,160,20),right=c(201,240,80),primary=NA_character_,secondary=NA_character_)
 ja<-deju_assign_junctions(x,a)
 stopifnot(identical(ja$assignment,c('annotated','novel_intragenic','unassigned')))
+# Stranded intergenic entries must not delete list slots or shift later genes.
+stranded <- x[c(3,1,2,3),]
+stranded$read_strand <- '-'
+assigned <- deju_assign_junctions(stranded,a)
+stopifnot(identical(assigned$assignment,c('unassigned','annotated','novel_intragenic','unassigned')),
+          identical(assigned$gene_id,c(NA_character_,'M','M',NA_character_)))
+stranded$read_strand <- '+'
+stopifnot(all(deju_assign_junctions(stranded,a)$assignment=='unassigned'))
 a$genes<-rbind(a$genes,transform(a$genes,gene_id='OTHER'))
 stopifnot(deju_assign_junctions(x,a)$assignment[2]=='ambiguous_gene')
 cli_out<-file.path(tmp,'cli_counts')

@@ -180,7 +180,8 @@ deju_assign_junctions <- function(j, annotation) {
     if (j$read_strand[i] != '*') {
       compatible <- genes$gene_id[genes$strand==j$read_strand[i]]
       exact <- intersect(exact,compatible)
-      candidates[[i]] <- intersect(candidates[[i]],compatible)
+      # [[<- NULL deletes a list element; preserve empty junction slots.
+      candidates[i] <- list(intersect(candidates[[i]],compatible))
     }
     if (length(exact)) {
       possible <- exact; status <- 'annotated'; j$annotated[i] <- TRUE
