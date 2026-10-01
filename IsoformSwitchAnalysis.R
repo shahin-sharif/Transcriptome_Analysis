@@ -37,6 +37,10 @@ is_run <- function(cfg,check=FALSE) {
   },finally=grDevices::dev.off())
   sw <- is_api('importRdata',is_import_args(cfg,d$design,
     d$comparisons[,c('condition_1','condition_2')],matrix_table(txi$counts),matrix_table(txi$abundance)))
+  gene_audit <- is_import_gene_audit(sw,annot)
+  is_write(gene_audit,file.path(out,'import_gene_id_audit.tsv'))
+  is_assert(!any(gene_audit$status=='changed'),
+    'Import changed original gene IDs; see import_gene_id_audit.tsv. Stopped before filtering/testing.')
   imported <- unique(sw$isoformFeatures$isoform_id)
   f <- cfg$filter
   sw <- is_api('preFilter',list(switchAnalyzeRlist=sw,isoCount=f$iso_count,min.Count.prop=f$count_proportion,

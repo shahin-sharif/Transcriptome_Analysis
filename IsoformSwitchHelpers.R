@@ -99,9 +99,25 @@ is_import_args <- function(cfg,design=NULL,comparisons=NULL,counts=NULL,abundanc
   list(isoformCountMatrix=counts,isoformRepExpression=abundance,
     designMatrix=design,isoformExonAnnoation=cfg$gtf,isoformNtFasta=cfg$transcript_fasta,
     comparisonsToMake=comparisons,detectUnwantedEffects=FALSE,
+    # Reference Salmon quantifications must retain the supplied GTF gene IDs.
+    # StringTie repair can replace distinct IDs with a shared gene symbol.
+    fixStringTieAnnotationProblem=FALSE,
     addAnnotatedORFs=cfg$consequences,removeNonConvensionalChr=FALSE,removeTECgenes=FALSE,
     ignoreAfterBar=cfg$strip_pipe,ignoreAfterSpace=TRUE,ignoreAfterPeriod=FALSE,
     ignoreSurplusIsoforms=FALSE,estimateDifferentialGeneRange=FALSE)
+}
+is_import_gene_audit <- function(sw,annotation) {
+  original <- unique(annotation[,c('isoform_id','gene_id')])
+  actual <- unique(sw$isoformFeatures[,c('isoform_id','gene_id')])
+  is_assert(!anyDuplicated(original$isoform_id),'Ambiguous original transcript-to-gene mapping')
+  is_assert(!anyDuplicated(actual$isoform_id),'Imported transcript assigned to multiple genes')
+  is_assert(all(actual$isoform_id %in% original$isoform_id),'Imported transcript absent from original mapping')
+  names(original)[2] <- 'original_gene_id'
+  names(actual)[2] <- 'imported_gene_id'
+  audit <- merge(original,actual,by='isoform_id',all.x=TRUE,sort=FALSE)
+  audit$status <- ifelse(is.na(audit$imported_gene_id),'not_imported',
+    ifelse(audit$original_gene_id==audit$imported_gene_id,'preserved','changed'))
+  audit
 }
 is_check_api <- function(name,arg_names,fn=getExportedValue('IsoformSwitchAnalyzeR',name)) {
   missing <- setdiff(arg_names,names(formals(fn)))

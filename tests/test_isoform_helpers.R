@@ -15,6 +15,16 @@ cfg <- is_config(file.path(root,'examples/isoform_switch/config.json'))
 # A release-style import function deliberately lacks the development-only option.
 import_args <- is_import_args(cfg)
 stopifnot(!'autoCastDesignCol' %in% names(import_args))
+stopifnot(identical(import_args$fixStringTieAnnotationProblem,FALSE))
+# Shared symbols must never replace stable gene identifiers, even on one chromosome.
+original <- data.frame(isoform_id=c('t1','t2','t3'),gene_id=c('ENSG1.1','ENSG2.1','ENSG3.1'))
+preserved <- list(isoformFeatures=original[1:2,])
+audit_ids <- is_import_gene_audit(preserved,original)
+stopifnot(sum(audit_ids$status=='preserved')==2,sum(audit_ids$status=='not_imported')==1)
+collapsed <- preserved;collapsed$isoformFeatures$gene_id <- 'SHARED_SYMBOL'
+stopifnot(sum(is_import_gene_audit(collapsed,original)$status=='changed')==2)
+duplicate <- preserved;duplicate$isoformFeatures <- rbind(original[1:2,],data.frame(isoform_id='t1',gene_id='ENSG2.1'))
+stopifnot(fails(is_import_gene_audit(duplicate,original)))
 release_import <- function() NULL
 formals(release_import) <- as.pairlist(setNames(rep(list(NULL),length(import_args)),names(import_args)))
 stopifnot(is_check_api('importRdata',names(import_args),release_import))
@@ -39,6 +49,15 @@ stopifnot(nrow(r$all)==4,nrow(r$significant)==2,nrow(r$genes)==2,all(r$significa
 wrong <- tab;wrong$dIF <- -wrong$dIF;stopifnot(fails(is_results(wrong,comp,.05,.1)))
 # Real tximport/GTF/FASTA validation above. Optional full package test is explicit.
 if('--full' %in% commandArgs(TRUE)) {
+  # Actual released importer must preserve distinct genes sharing a display name.
+  shared_gtf <- tempfile(fileext='.gtf')
+  writeLines(gsub('gene_name "[^"]+"','gene_name "SHARED_SYMBOL"',readLines(cfg$gtf)),shared_gtf)
+  shared_cfg <- cfg;shared_cfg$gtf <- shared_gtf
+  matrix_table <- function(x) data.frame(isoform_id=rownames(x),x,check.names=FALSE)
+  imported <- is_api('importRdata',is_import_args(shared_cfg,d$design,
+    d$comparisons[,c('condition_1','condition_2')],matrix_table(txi$counts),matrix_table(txi$abundance)))
+  stopifnot(all(is_import_gene_audit(imported,a)$status=='preserved'))
+  unlink(shared_gtf)
   cfg$out <- tempfile('isoform-switch-test-')
   r <- is_run(cfg)
   planted <- sprintf('SYN_G%03d',1:5)

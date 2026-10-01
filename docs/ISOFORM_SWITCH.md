@@ -213,3 +213,23 @@ an assertion that every previously requested optional stage completed.
 Annotation-only transcripts, multi-locus gene exclusions and latent-factor
 warnings still require scientific QC. Plot recovery does not repair or dismiss
 those issues.
+
+## Preserve stable annotation gene IDs
+
+Reference Salmon imports explicitly set `fixStringTieAnnotationProblem=FALSE`.
+The released importer can otherwise use `gene_name` as a replacement for
+`gene_id`, merging distinct loci that share a symbol and potentially removing
+cross-sequence groups. This wrapper treats the supplied transcript-to-gene
+mapping as authoritative rather than applying StringTie repair.
+
+`import_gene_id_audit.tsv` compares original and imported IDs for every
+quantified transcript. A changed ID stops the analysis before filtering and
+DEXSeq. `not_imported` is a status, not an exclusion reason: unexpressed
+transcripts and other upstream exclusions require separate QC.
+
+If a previous run changed IDs or merged different original genes, rerun the
+isoform module into a new output directory. Renaming result columns afterward
+cannot repair the within-gene fractions, filtering, statistical tests, or
+multiple-testing correction. BAM-based DGE and DEJU use a separate annotation
+path and do not require a rerun for this importer defect. Keep previous outputs
+as provenance, but treat the affected isoform statistics as provisional.
