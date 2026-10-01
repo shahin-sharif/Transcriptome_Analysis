@@ -178,3 +178,38 @@ preflight, and includes its tables/PDFs/status in the main HTML report. Standalo
 and integrated execution call exactly the same R module.
 
 Reference: [IsoformSwitchAnalyzeR manual](https://bioconductor.org/packages/release/bioc/manuals/IsoformSwitchAnalyzeR/man/IsoformSwitchAnalyzeR.pdf).
+
+## Recover plots after an ORF-free plotting failure
+
+With IsoformSwitchAnalyzeR 2.12.0, upstream detailed plots can fail with
+`Error in if (nrow(orfInfo) == 0): argument is of length zero` when ORF
+annotation was not requested. Core results may already be saved. The wrapper
+now uses exon-structure and group isoform-fraction plots when ORF annotation is
+absent. These plots do not label unannotated isoforms as noncoding. They show
+retained/tested isoforms on genomic coordinates; no ORF, topology, consequence,
+or confidence-interval inference is added. Large genes are paginated.
+
+To recover plots from an existing result folder without rereading BAMs, Salmon
+files or GTF, and without refitting DEXSeq:
+
+```bash
+Rscript --vanilla PlotIsoformSwitches.R \
+  /path/to/results/isoform_switch \
+  /path/to/new_recovered_plot_directory
+```
+
+The input folder must contain `all_tested_switches.rds` and
+`resolved_config.json`. The new output folder must not exist. Recovery uses
+core exon/fraction plots even when ORF annotation exists. It preserves saved
+statistics and thresholds, selects up to the configured number of genes per
+comparison, and ranks them by their minimum significant isoform q-value for
+presentation only, not as a calibrated gene-level test. `plot_index.tsv` lists
+PDFs; `plotted_isoform_statistics.tsv` records the underlying values. The
+recovery directory contains source checksums, session information and
+`PLOTS_COMPLETE.txt` on success. Original workflow completion markers/reports
+are intentionally unchanged: recovery is a separate recorded operation, not
+an assertion that every previously requested optional stage completed.
+
+Annotation-only transcripts, multi-locus gene exclusions and latent-factor
+warnings still require scientific QC. Plot recovery does not repair or dismiss
+those issues.

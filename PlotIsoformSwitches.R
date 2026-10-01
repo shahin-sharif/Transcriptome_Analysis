@@ -1,0 +1,21 @@
+#!/usr/bin/env Rscript
+# Recover plots from saved statistics without reading BAMs or refitting DEXSeq.
+args <- commandArgs(TRUE)
+if(length(args)!=2L) stop('Usage: Rscript --vanilla PlotIsoformSwitches.R EXISTING_ISOFORM_RESULT_DIR NEW_PLOT_DIR',call.=FALSE)
+script <- sub('^--file=','',grep('^--file=',commandArgs(FALSE),value=TRUE)[1])
+source(file.path(dirname(normalizePath(script)),'IsoformSwitchHelpers.R'))
+input <- normalizePath(path.expand(args[1]),mustWork=TRUE)
+out <- path.expand(args[2])
+is_assert(!file.exists(out),'Plot output already exists; choose a new directory')
+is_assert(requireNamespace('jsonlite',quietly=TRUE),'Install jsonlite')
+cfg <- jsonlite::fromJSON(file.path(input,'resolved_config.json'),simplifyVector=FALSE)
+is_assert(is.numeric(cfg$plots) && length(cfg$plots)==1 && cfg$plots>=0 && cfg$plots==as.integer(cfg$plots),'Invalid saved plot count')
+is_assert(is.numeric(cfg$alpha) && cfg$alpha>0 && cfg$alpha<1,'Invalid saved alpha')
+is_assert(is.numeric(cfg$delta_if) && cfg$delta_if>=0 && cfg$delta_if<=1,'Invalid saved dIF threshold')
+sw <- readRDS(file.path(input,'all_tested_switches.rds'))
+# Core recovery intentionally uses the ORF-independent plot mode for every object.
+is_plot_core_switches(sw,cfg,out)
+inputs <- file.path(input,c('resolved_config.json','all_tested_switches.rds'))
+is_write(data.frame(input=inputs,md5=unname(tools::md5sum(inputs))),file.path(out,'source_checksums.tsv'))
+capture.output(sessionInfo(),file=file.path(out,'sessionInfo.txt'))
+cat('Plots recovered without refitting statistics:',normalizePath(out),'\n')

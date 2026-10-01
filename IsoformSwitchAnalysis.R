@@ -86,9 +86,7 @@ is_run <- function(cfg,check=FALSE) {
     sw <- swc
   }
   if(cfg$plots>0 && has_switches) {
-    plotdir <- file.path(out,'switch_plots');dir.create(plotdir)
-    is_api('switchPlotTopSwitches',list(switchAnalyzeRlist=sw,alpha=cfg$alpha,dIFcutoff=cfg$delta_if,n=cfg$plots,
-      filterForConsequences=FALSE,pathToOutput=plotdir,splitComparison=TRUE,splitFunctionalConsequences=FALSE))
+    is_plot_switches(sw,cfg,file.path(out,'switch_plots'))
   }
   is_write(data.frame(stage=c('core_dexseq','consequences','switch_plots','go'),status=c('completed',
     if(!cfg$consequences) 'not_requested' else if(!has_switches) 'no_significant_switches' else 'completed',

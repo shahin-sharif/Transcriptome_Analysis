@@ -218,3 +218,94 @@ is_go <- function(tab,cfg,out) {
     is_write(as.data.frame(result),file.path(out,paste0(cmp,'.go.tsv')))
   }
 }
+
+# Plot retained exon structures and group isoform fractions without ORF assumptions.
+# This path does not fit a model, annotate coding potential, or modify the object.
+is_plot_core_switches <- function(sw,cfg,out) {
+  comparisons <- do.call(rbind,lapply(cfg$comparisons,function(x)
+    data.frame(name=x$name,condition_1=x$reference,condition_2=x$treatment)))
+  results <- is_results(sw$isoformFeatures,comparisons,cfg$alpha,cfg$delta_if)
+  is_assert(!dir.exists(out),'Plot output already exists; choose a new directory')
+  dir.create(out,recursive=TRUE)
+  writeLines('Plot generation incomplete.',file.path(out,'INCOMPLETE.txt'))
+  ex <- as.data.frame(sw$exons)
+  is_assert(all(c('isoform_id','seqnames','start','end','strand') %in% names(ex)),
+            'Saved object lacks exon coordinates required for structure plots')
+  index <- data.frame(comparison=character(),gene_id=character(),file=character(),pages=integer())
+  plotted <- list()
+  for (cmp in comparisons$name) {
+    significant <- results$significant[results$significant$comparison==cmp,,drop=FALSE]
+    if (!nrow(significant) || cfg$plots==0) next
+    # Rank by minimum isoform q-value for display only, not gene-level inference.
+    scores <- tapply(significant$isoform_switch_q_value,significant$gene_id,min)
+    genes <- names(scores)[order(scores,names(scores))]
+    genes <- head(genes,cfg$plots)
+    for (gene in genes) {
+      tab <- results$all[results$all$comparison==cmp & results$all$gene_id==gene,,drop=FALSE]
+      tab <- tab[order(-pmax(tab$IF1,tab$IF2),tab$isoform_id),,drop=FALSE]
+      coords <- ex[ex$isoform_id %in% tab$isoform_id,,drop=FALSE]
+      is_assert(all(tab$isoform_id %in% coords$isoform_id),'Missing exon structures for plotted isoforms')
+      chr <- unique(as.character(coords$seqnames))
+      is_assert(length(chr)==1,paste('Cannot plot a gene on multiple sequences:',gene))
+      is_assert(all(is.finite(tab$IF1)&is.finite(tab$IF2)&tab$IF1>=0&tab$IF1<=1&tab$IF2>=0&tab$IF2<=1),
+                'Invalid isoform fractions for plotting')
+      filename <- sprintf('%03d_%s_%s.pdf',nrow(index)+1L,
+                          gsub('[^A-Za-z0-9_.-]','_',cmp),gsub('[^A-Za-z0-9_.-]','_',gene))
+      pages <- split(seq_len(nrow(tab)),ceiling(seq_len(nrow(tab))/12))
+      grDevices::pdf(file.path(out,filename),width=13,height=8,onefile=TRUE)
+      tryCatch({
+        for (ii in pages) {
+          t <- tab[ii,,drop=FALSE]; y <- rev(seq_len(nrow(t)))
+          graphics::layout(matrix(c(1,2),nrow=1),widths=c(2.1,1))
+          graphics::par(mar=c(6,12,5,1))
+          limits <- range(c(coords$start,coords$end))
+          graphics::plot(NA,xlim=limits,ylim=c(.4,nrow(t)+.6),yaxt='n',
+            xlab=paste(chr,'genomic position (increasing left to right)'),ylab='',
+            main=paste(gene,cmp,sep=' | '))
+          graphics::axis(2,at=y,labels=t$isoform_id,las=2,cex.axis=.65)
+          for (k in seq_len(nrow(t))) {
+            e <- coords[coords$isoform_id==t$isoform_id[k],,drop=FALSE]
+            graphics::segments(min(e$start),y[k],max(e$end),y[k],col='grey60')
+            graphics::rect(e$start,y[k]-.18,e$end,y[k]+.18,col='#376795',border=NA)
+          }
+          graphics::mtext(paste('Exons only; coding status not displayed. Strand:',
+            paste(unique(as.character(coords$strand)),collapse=',')),side=3,line=.2,cex=.7)
+          graphics::par(mar=c(6,1,5,1))
+          graphics::plot(NA,xlim=c(0,1),ylim=c(.4,nrow(t)+.6),yaxt='n',
+            xlab='Group isoform fraction',ylab='',main='Relative isoform usage')
+          graphics::segments(t$IF1,y,t$IF2,y,col='grey55')
+          graphics::points(t$IF1,y,pch=16,col='#2166AC')
+          graphics::points(t$IF2,y,pch=17,col='#B35806')
+          graphics::legend('top',inset=c(0,-.16),xpd=NA,bty='n',horiz=TRUE,
+            legend=c(t$condition_1[1],t$condition_2[1]),pch=c(16,17),col=c('#2166AC','#B35806'),cex=.8)
+          graphics::mtext('Group estimates; no confidence intervals shown',side=1,line=4.3,cex=.65)
+        }
+      },finally=grDevices::dev.off())
+      index <- rbind(index,data.frame(comparison=cmp,gene_id=gene,file=filename,pages=length(pages)))
+      plotted[[length(plotted)+1L]] <- tab
+    }
+  }
+  is_write(index,file.path(out,'plot_index.tsv'))
+  is_write(if(length(plotted)) do.call(rbind,plotted) else results$all[FALSE,,drop=FALSE],
+           file.path(out,'plotted_isoform_statistics.tsv'))
+  writeLines(c('Plots show retained/tested isoforms, not all reference transcripts.',
+    'Uniform-height exon boxes indicate exon structure only, not noncoding status.',
+    'Coordinates are genomic and not intron-rescaled; distant exons may appear small.',
+    'Selection: up to configured plots per comparison, ranked by minimum significant isoform q-value.',
+    'Ranking is descriptive, not a calibrated gene-level FDR. No statistics were refitted.',
+    'Review original annotation exclusions and QC before biological interpretation.'),file.path(out,'README.txt'))
+  writeLines('Requested core structure/fraction plots completed; original workflow status is unchanged.',
+             file.path(out,'PLOTS_COMPLETE.txt'))
+  unlink(file.path(out,'INCOMPLETE.txt'))
+  invisible(index)
+}
+
+is_plot_switches <- function(sw,cfg,out) {
+  if (!is.data.frame(sw$orfAnalysis) || !nrow(sw$orfAnalysis)) {
+    message('No ORF annotation: plotting exon structures and isoform fractions without coding inference.')
+    return(is_plot_core_switches(sw,cfg,out))
+  }
+  dir.create(out,recursive=TRUE)
+  is_api('switchPlotTopSwitches',list(switchAnalyzeRlist=sw,alpha=cfg$alpha,dIFcutoff=cfg$delta_if,n=cfg$plots,
+    filterForConsequences=FALSE,pathToOutput=out,splitComparison=TRUE,splitFunctionalConsequences=FALSE))
+}
